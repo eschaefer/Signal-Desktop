@@ -34608,7 +34608,7 @@ window.libsignal.protocol = function(storage_interface) {
             throw new Error("Expected plaintext to be an ArrayBuffer");
         }
 
-        var ourIdentityKey, myRegistrationId, record, session, hadSession;
+        var ourIdentityKey, myRegistrationId, record, session;
         return Promise.all([
             storage_interface.getIdentityKeyPair(),
             storage_interface.getLocalRegistrationId(),
@@ -34617,29 +34617,13 @@ window.libsignal.protocol = function(storage_interface) {
             ourIdentityKey   = results[0];
             myRegistrationId = results[1];
             record           = results[2];
-            if (record) {
-                session = record.getOpenSession();
+            if (!record) {
+                throw new Error("No record for " + deviceObject.encodedNumber);
             }
-
-            hadSession = session !== undefined;
-
-            if (session === undefined) {
-                var address = SignalProtocolAddress.fromString(deviceObject.encodedNumber);
-                var builder = new SessionBuilder(storage_interface, address);
-
-                return builder.processPreKey(deviceObject);
+            session = record.getOpenSession();
+            if (!session) {
+                throw new Error("No session to encrypt message for " + deviceObject.encodedNumber);
             }
-        }).then(function() {
-            return getRecord(deviceObject.encodedNumber).then(function(refreshed) {
-                record = refreshed;
-                if (!record) {
-                    throw new Error("No record for " + deviceObject.encodedNumber);
-                }
-                session = record.getOpenSession();
-                if (!session) {
-                    throw new Error("No session to encrypt message for " + deviceObject.encodedNumber);
-                }
-            });
         }).then(function doEncryptPushMessageContent() {
             var msg = new Internal.protobuf.WhisperMessage();
 
