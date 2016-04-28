@@ -34260,57 +34260,8 @@ var util = (function() {
 'use strict';
 window.libsignal = window.libsignal || {};
 
-function isNonNegativeInteger(n) {
-    return (typeof n === 'number' && (n % 1) === 0  && n >= 0);
-}
 
-libsignal.util = {
-    generateIdentityKeyPair: function() {
-        return Internal.crypto.createKeyPair();
-    },
-
-    generateRegistrationId: function() {
-        var registrationId = new Uint16Array(Internal.crypto.getRandomBytes(2))[0];
-        return registrationId & 0x3fff;
-    },
-
-    generateSignedPreKey: function (identityKeyPair, signedKeyId) {
-        if (!(identityKeyPair.privKey instanceof ArrayBuffer) ||
-            identityKeyPair.privKey.byteLength != 32 ||
-            !(identityKeyPair.pubKey instanceof ArrayBuffer) ||
-            identityKeyPair.pubKey.byteLength != 33) {
-            throw new TypeError('Invalid argument for identityKeyPair');
-        }
-        if (!isNonNegativeInteger(signedKeyId)) {
-            throw new TypeError(
-                'Invalid argument for signedKeyId: ' + signedKeyId
-            );
-        }
-
-        return Internal.crypto.createKeyPair().then(function(keyPair) {
-            return Internal.crypto.Ed25519Sign(identityKeyPair.privKey, keyPair.pubKey).then(function(sig) {
-                return {
-                    keyId      : signedKeyId,
-                    keyPair    : keyPair,
-                    signature  : sig
-                };
-            });
-        });
-    },
-
-    generatePreKey: function(keyId) {
-        if (!isNonNegativeInteger(keyId)) {
-            throw new TypeError('Invalid argument for keyId: ' + keyId);
-        }
-
-        return Internal.crypto.createKeyPair().then(function(keyPair) {
-            return { keyId: keyId, keyPair: keyPair };
-        });
-    },
-
-};
-
-window.libsignal.protocol = function(storage_interface) {
+libsignal.protocol = function(storage_interface) {
     var self = {};
 
     /***************************
@@ -34465,6 +34416,57 @@ window.libsignal.protocol = function(storage_interface) {
 };
 
 })();
+
+function isNonNegativeInteger(n) {
+    return (typeof n === 'number' && (n % 1) === 0  && n >= 0);
+}
+
+var KeyHelper = {
+    generateIdentityKeyPair: function() {
+        return Internal.crypto.createKeyPair();
+    },
+
+    generateRegistrationId: function() {
+        var registrationId = new Uint16Array(Internal.crypto.getRandomBytes(2))[0];
+        return registrationId & 0x3fff;
+    },
+
+    generateSignedPreKey: function (identityKeyPair, signedKeyId) {
+        if (!(identityKeyPair.privKey instanceof ArrayBuffer) ||
+            identityKeyPair.privKey.byteLength != 32 ||
+            !(identityKeyPair.pubKey instanceof ArrayBuffer) ||
+            identityKeyPair.pubKey.byteLength != 33) {
+            throw new TypeError('Invalid argument for identityKeyPair');
+        }
+        if (!isNonNegativeInteger(signedKeyId)) {
+            throw new TypeError(
+                'Invalid argument for signedKeyId: ' + signedKeyId
+            );
+        }
+
+        return Internal.crypto.createKeyPair().then(function(keyPair) {
+            return Internal.crypto.Ed25519Sign(identityKeyPair.privKey, keyPair.pubKey).then(function(sig) {
+                return {
+                    keyId      : signedKeyId,
+                    keyPair    : keyPair,
+                    signature  : sig
+                };
+            });
+        });
+    },
+
+    generatePreKey: function(keyId) {
+        if (!isNonNegativeInteger(keyId)) {
+            throw new TypeError('Invalid argument for keyId: ' + keyId);
+        }
+
+        return Internal.crypto.createKeyPair().then(function(keyPair) {
+            return { keyId: keyId, keyPair: keyPair };
+        });
+    }
+};
+
+libsignal.KeyHelper = KeyHelper;
 
 var Internal = Internal || {};
 
@@ -36806,7 +36808,7 @@ var TextSecureServer = (function() {
             var registerKeys = this.server.registerKeys.bind(this.server);
             var createAccount = this.createAccount.bind(this);
             var generateKeys = this.generateKeys.bind(this, 100);
-            return libsignal.util.generateIdentityKeyPair().then(function(identityKeyPair) {
+            return libsignal.KeyHelper.generateIdentityKeyPair().then(function(identityKeyPair) {
                 return createAccount(number, verificationCode, identityKeyPair).
                     then(generateKeys).
                     then(registerKeys).
@@ -36876,7 +36878,7 @@ var TextSecureServer = (function() {
             var signalingKey = textsecure.crypto.getRandomBytes(32 + 20);
             var password = btoa(getString(textsecure.crypto.getRandomBytes(16)));
             password = password.substring(0, password.length - 2);
-            var registrationId = libsignal.util.generateRegistrationId();
+            var registrationId = libsignal.KeyHelper.generateRegistrationId();
 
             return this.server.confirmCode(
                 number, verificationCode, password, signalingKey, registrationId, deviceName
@@ -36930,7 +36932,7 @@ var TextSecureServer = (function() {
 
                 for (var keyId = startId; keyId < startId+count; ++keyId) {
                     promises.push(
-                        libsignal.util.generatePreKey(keyId).then(function(res) {
+                        libsignal.KeyHelper.generatePreKey(keyId).then(function(res) {
                             store.storePreKey(res.keyId, res.keyPair);
                             result.preKeys.push({
                                 keyId     : res.keyId,
@@ -36942,7 +36944,7 @@ var TextSecureServer = (function() {
                 }
 
                 promises.push(
-                    libsignal.util.generateSignedPreKey(identityKey, signedKeyId).then(function(res) {
+                    libsignal.KeyHelper.generateSignedPreKey(identityKey, signedKeyId).then(function(res) {
                         store.storeSignedPreKey(res.keyId, res.keyPair);
                         result.signedPreKey = {
                             keyId     : res.keyId,
