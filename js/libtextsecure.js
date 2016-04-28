@@ -34826,15 +34826,21 @@ SignalProtocolAddress.prototype = {
   }
 };
 
-SignalProtocolAddress.fromString = function(encodedAddress) {
+libsignal.SignalProtocolAddress = function(name, deviceId) {
+  var address = new SignalProtocolAddress(name, deviceId);
+
+  ['getName', 'getDeviceId', 'toString', 'equals'].forEach(function(method) {
+    this[method] = address[method].bind(address);
+  }.bind(this));
+}
+
+libsignal.SignalProtocolAddress.fromString = function(encodedAddress) {
   if (typeof encodedAddress !== 'string' || !encodedAddress.match(/.*\.\d+/)) {
     throw new Error('Invalid SignalProtocolAddress string');
   }
   var parts = encodedAddress.split('.');
-  return new SignalProtocolAddress(parts[0], parseInt(parts[1]));
+  return new libsignal.SignalProtocolAddress(parts[0], parseInt(parts[1]));
 };
-
-libsignal.SignalProtocolAddress = SignalProtocolAddress;
 
 function SessionBuilder(storage, remoteAddress) {
   this.remoteAddress = remoteAddress;
