@@ -34391,33 +34391,6 @@ window.libsignal.protocol = function(storage_interface) {
         });
     }
 
-
-    /*************************
-    *** Public crypto API ***
-    *************************/
-    //TODO: SHARP EDGE HERE
-    //XXX: Also, you MUST call the session close function before processing another message....except its a promise...so you literally cant!
-    // returns decrypted plaintext and a function that must be called if the message indicates session close
-    self.decryptWhisperMessage = function(encodedNumber, messageBytes) {
-        var address = SignalProtocolAddress.fromString(encodedNumber);
-        var sessionCipher = new SessionCipher(storage_interface, address);
-        return sessionCipher.decryptWhisperMessage(util.toArrayBuffer(messageBytes));
-    };
-
-    // Inits a session (maybe) and then decrypts the message
-    self.handlePreKeyWhisperMessage = function(encodedNumber, encodedMessage, encoding) {
-        var address = SignalProtocolAddress.fromString(encodedNumber);
-        var sessionCipher = new SessionCipher(storage_interface, address);
-        return sessionCipher.decryptPreKeyWhisperMessage(encodedMessage, encoding);
-    };
-
-    // return Promise(encoded [PreKey]WhisperMessage)
-    self.encryptMessageFor = function(deviceObject, plaintext) {
-        var address = SignalProtocolAddress.fromString(deviceObject.encodedNumber);
-        var sessionCipher = new SessionCipher(storage_interface, address);
-        return sessionCipher.encrypt(plaintext);
-    };
-
     self.createIdentityKeyRecvSocket = function() {
         var socketInfo = {};
         var keyPair;
@@ -35056,10 +35029,13 @@ SessionBuilder.prototype = {
         });
     });
   }
-
 };
 
-libsignal.SessionBuilder = SessionBuilder;
+libsignal.SessionBuilder = function (storage, remoteAddress) {
+  var builder = new SessionBuilder(storage, remoteAddress);
+  this.processPreKey = builder.processPreKey.bind(builder);
+  this.processV3 = builder.processV3.bind(builder);
+};
 
 function SessionCipher(storage, remoteAddress) {
   this.remoteAddress = remoteAddress;
@@ -35388,10 +35364,17 @@ SessionCipher.prototype = {
 
 libsignal.SessionCipher = function(storage, remoteAddress) {
     var cipher = new SessionCipher(storage, remoteAddress);
+
+    // return Promise that resolves
     this.encrypt = cipher.encrypt.bind(cipher);
+
+    // returns a Promise that inits a session if necessary and resolves
+    // to a decrypted plaintext array buffer
     this.decryptPreKeyWhisperMessage = cipher.decryptPreKeyWhisperMessage.bind(cipher);
+
+    // returns a Promise that resolves to decrypted plaintext array buffer
     this.decryptWhisperMessage = cipher.decryptWhisperMessage.bind(cipher);
-}
+};
 
 })();
 /*
