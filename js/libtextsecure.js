@@ -34522,10 +34522,12 @@ Internal.SessionRecord = function() {
         haveOpenSession: function() {
             return this.registrationId !== null;
         },
-        getSessionOrIdentityKeyByBaseKey: function(baseKey) {
-            var sessions = this._sessions;
 
-            var preferredSession = this._sessions[util.toString(baseKey)];
+        getSessionByBaseKey: function(baseKey) {
+            return this._sessions[util.toString(baseKey)];
+        },
+        getSessionOrIdentityKeyByBaseKey: function(baseKey) {
+            var preferredSession = this.getSessionByBaseKey(baseKey);
             if (preferredSession !== undefined) {
                 return preferredSession;
             }
@@ -34776,15 +34778,31 @@ SessionBuilder.prototype = {
     }.bind(this));
   },
   processV3: function(record, message) {
-    var preKeyPair, signedPreKeyPair;
-    var session = record.getSessionOrIdentityKeyByBaseKey(message.baseKey);
-    return Promise.all([
-        this.storage.loadPreKey(message.preKeyId),
-        this.storage.loadSignedPreKey(message.signedPreKeyId),
-    ]).then(function(results) {
-        preKeyPair       = results[0];
-        signedPreKeyPair = results[1];
-    }).then(function() {
+    var preKeyPair, signedPreKeyPair, session;
+    return this.storage.isTrustedIdentity(
+        this.remoteAddress.getName(), message.identityKey
+    ).then(function(trusted) {
+        if (!trusted) {
+            var e = new Error('Unknown identity key');
+            e.identityKey = message.identityKey.toArrayBuffer();
+            throw e;
+        }
+        return Promise.all([
+            this.storage.loadPreKey(message.preKeyId),
+            this.storage.loadSignedPreKey(message.signedPreKeyId),
+        ]).then(function(results) {
+            preKeyPair       = results[0];
+            signedPreKeyPair = results[1];
+        });
+    }.bind(this)).then(function() {
+        session = record.getSessionByBaseKey(message.baseKey);
+        if (session) {
+          console.log("Duplicate PreKeyMessage for session");
+          return;
+        }
+
+        session = record.getOpenSession();
+
         if (signedPreKeyPair === undefined) {
             // Session may or may not be the right one, but if its not, we
             // can't do anything about it ...fall through and let
@@ -34795,24 +34813,9 @@ SessionBuilder.prototype = {
                 throw new Error("Missing Signed PreKey for PreKeyWhisperMessage");
             }
         }
-        if (session !== undefined) {
-            // Duplicate PreKeyMessage for session:
-            if (util.isEqual(session.indexInfo.baseKey, message.baseKey)) {
-                return;
-            }
 
-            // We already had a session/known identity key:
-            if (util.isEqual(session.indexInfo.remoteIdentityKey, message.identityKey)) {
-                // If the identity key matches the previous one, close the
-                // previous one and use the new one
-                record.archiveCurrentState();
-            } else {
-                // ...otherwise create an error that the UI will pick up
-                // and ask the user if they want to re-negotiate
-                var e = new Error('Unknown identity key');
-                e.identityKey = message.identityKey.toArrayBuffer();
-                throw e;
-            }
+        if (session !== undefined) {
+            record.archiveCurrentState();
         }
         if (message.preKeyId && !preKeyPair) {
             console.log('Invalid prekey id');
@@ -35087,9 +35090,9 @@ SessionCipher.prototype = {
                     preKeyProto.registrationId
                 );
             }
-            var builder = new SessionBuilder(this.storage, address);
+            var builder = new SessionBuilder(this.storage, this.remoteAddress);
             return builder.processV3(record, preKeyProto).then(function(preKeyId) {
-                var session = record.getSessionOrIdentityKeyByBaseKey(preKeyProto.baseKey);
+                var session = record.getSessionByBaseKey(preKeyProto.baseKey);
                 return this.doDecryptWhisperMessage(
                     preKeyProto.message.toArrayBuffer(), session
                 ).then(function(plaintext) {
