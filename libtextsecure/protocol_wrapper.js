@@ -15,9 +15,7 @@
         },
         stopWorker: function() {
             libsignal.protocol.stopWorker();
-        },
-        createIdentityKeyRecvSocket: function() {
-            return libsignal.protocol.createIdentityKeyRecvSocket();
         }
     };
+    window.textsecure.ProvisioningCipher = libsignal.ProvisioningCipher;
 })();
