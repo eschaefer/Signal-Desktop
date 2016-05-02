@@ -35429,8 +35429,8 @@ Internal.SessionLock.queueJobForNumber = function queueJobForNumber(number, runJ
 
     window.textsecure = window.textsecure || {};
     window.textsecure.protocol_wrapper = {
-        startWorker: function() {
-            libsignal.protocol.startWorker('/js/libsignal-protocol-worker.js');
+        startWorker: function(url) {
+            libsignal.protocol.startWorker(url);
         },
         stopWorker: function() {
             libsignal.protocol.stopWorker();
