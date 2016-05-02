@@ -34267,21 +34267,8 @@ var util = (function() {
 'use strict';
 window.libsignal = window.libsignal || {};
 
-
-libsignal.protocol = function(storage_interface) {
+libsignal.protocol = (function() {
     var self = {};
-
-    /***************************
-    *** Key/session storage ***
-    ***************************/
-    function getRecord(encodedNumber) {
-        return storage_interface.loadSession(encodedNumber).then(function(serialized) {
-            if (serialized === undefined) {
-                return undefined;
-            }
-            return Internal.SessionRecord.deserialize(serialized);
-        });
-    }
 
     /*****************************
     *** Internal Crypto stuff ***
@@ -34334,19 +34321,6 @@ libsignal.protocol = function(storage_interface) {
         });
     }
 
-    self.closeOpenSessionForDevice = function(encodedNumber) {
-        return getRecord(encodedNumber).then(function(record) {
-            if (record !== undefined) {
-                if (record.getOpenSession() === undefined) {
-                    return;
-                }
-
-                record.archiveCurrentState();
-                return storage_interface.storeSession(encodedNumber, record.serialize());
-            }
-        });
-    }
-
     self.createIdentityKeyRecvSocket = function() {
         var socketInfo = {};
         var keyPair;
@@ -34391,25 +34365,6 @@ libsignal.protocol = function(storage_interface) {
         });
     }
 
-
-    self.getRegistrationId = function(encodedNumber) {
-        return getRecord(encodedNumber).then(function(record) {
-            if (record === undefined) {
-                return undefined;
-            }
-            return record.registrationId;
-        });
-    };
-
-    self.hasOpenSession = function(encodedNumber) {
-        return getRecord(encodedNumber).then(function(record) {
-            if (record === undefined) {
-                return false;
-            }
-            return record.haveOpenSession();
-        });
-    };
-
     self.startWorker = function(url) {
         Internal.startWorker(url);
     };
@@ -34418,7 +34373,7 @@ libsignal.protocol = function(storage_interface) {
     };
 
     return self;
-};
+})();
 
 })();
 
@@ -35471,18 +35426,17 @@ Internal.SessionLock.queueJobForNumber = function queueJobForNumber(number, runJ
     window.textsecure.storage = window.textsecure.storage || {};
 
     textsecure.storage.protocol = new SignalProtocolStore();
-    var protocolInstance = libsignal.protocol(textsecure.storage.protocol);
 
     window.textsecure = window.textsecure || {};
     window.textsecure.protocol_wrapper = {
         startWorker: function() {
-            protocolInstance.startWorker('/js/libsignal-protocol-worker.js');
+            libsignal.protocol.startWorker('/js/libsignal-protocol-worker.js');
         },
         stopWorker: function() {
-            protocolInstance.stopWorker();
+            libsignal.protocol.stopWorker();
         },
         createIdentityKeyRecvSocket: function() {
-            return protocolInstance.createIdentityKeyRecvSocket();
+            return libsignal.protocol.createIdentityKeyRecvSocket();
         }
     };
 })();
