@@ -35234,35 +35234,35 @@ function ProvisioningCipher() {
 }
 
 ProvisioningCipher.prototype = {
-    decrypt: function(deviceInit) {
-        var masterEphemeral = util.toArrayBuffer(deviceInit.publicKey);
-        var message = util.toArrayBuffer(deviceInit.body);
+    decrypt: function(provisionEnvelope) {
+        var masterEphemeral = provisionEnvelope.publicKey.toArrayBuffer();
+        var message = provisionEnvelope.body.toArrayBuffer();
+        if (new Uint8Array(message)[0] != 1) {
+            throw new Error("Bad version number on ProvisioningMessage");
+        }
+
+        var iv = message.slice(1, 16 + 1);
+        var mac = message.slice(message.byteLength - 32, message.byteLength);
+        var ivAndCiphertext = message.slice(0, message.byteLength - 32);
+        var ciphertext = message.slice(16 + 1, message.byteLength - 32);
 
         return Internal.crypto.ECDHE(masterEphemeral, this.keyPair.privKey).then(function(ecRes) {
-            return Internal.HKDF(ecRes, '', "TextSecure Provisioning Message").then(function(keys) {
-                if (new Uint8Array(message)[0] != 1)
-                    throw new Error("Bad version number on ProvisioningMessage");
-
-                var iv = message.slice(1, 16 + 1);
-                var mac = message.slice(message.byteLength - 32, message.byteLength);
-                var ivAndCiphertext = message.slice(0, message.byteLength - 32);
-                var ciphertext = message.slice(16 + 1, message.byteLength - 32);
-
+            return Internal.HKDF(ecRes, new ArrayBuffer(32), "TextSecure Provisioning Message").then(function(keys) {
                 return Internal.verifyMAC(ivAndCiphertext, keys[1], mac, 32).then(function() {
-                    return Internal.crypto.decrypt(keys[0], ciphertext, iv).then(function(plaintext) {
-                        var provisionMessage = Internal.protobuf.ProvisionMessage.decode(plaintext);
-
-                        return Internal.crypto.createKeyPair(
-                            provisionMessage.identityKeyPrivate.toArrayBuffer()
-                        ).then(function(identityKeyPair) {
-                            return {
-                                identityKeyPair  : identityKeyPair,
-                                number           : provisionMessage.number,
-                                provisioningCode : provisionMessage.provisioningCode
-                            };
-                        });
-                    });
+                    return Internal.crypto.decrypt(keys[0], ciphertext, iv);
                 });
+            });
+        }).then(function(plaintext) {
+            var provisionMessage = Internal.protobuf.ProvisionMessage.decode(plaintext);
+
+            return Internal.crypto.createKeyPair(
+                provisionMessage.identityKeyPrivate.toArrayBuffer()
+            ).then(function(identityKeyPair) {
+                return {
+                    identityKeyPair  : identityKeyPair,
+                    number           : provisionMessage.number,
+                    provisioningCode : provisionMessage.provisioningCode
+                };
             });
         });
     },
