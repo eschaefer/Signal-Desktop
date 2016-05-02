@@ -8,14 +8,7 @@
 
     textsecure.storage.protocol = new SignalProtocolStore();
 
-    window.textsecure = window.textsecure || {};
-    window.textsecure.protocol_wrapper = {
-        startWorker: function(url) {
-            libsignal.protocol.startWorker(url);
-        },
-        stopWorker: function() {
-            libsignal.protocol.stopWorker();
-        }
-    };
-    window.textsecure.ProvisioningCipher = libsignal.ProvisioningCipher;
+    textsecure.ProvisioningCipher = libsignal.ProvisioningCipher;
+    textsecure.startWorker        = libsignal.worker.startWorker;
+    textsecure.stopWorker         = libsignal.worker.stopWorker;
 })();
