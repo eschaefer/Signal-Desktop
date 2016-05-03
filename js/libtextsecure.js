@@ -34598,28 +34598,9 @@ Internal.SessionRecord = function() {
                 throw e;
             }
 
-            var doDeleteSession = false;
-            if (session.indexInfo.closed != -1) {
-                doDeleteSession = (session.indexInfo.closed < (Date.now() - MESSAGE_LOST_THRESHOLD_MS));
+            sessions[util.toString(session.indexInfo.baseKey)] = session;
 
-                if (!doDeleteSession) {
-                    var keysLeft = false;
-                    for (var key in session) {
-                        if (key != "indexInfo" && key != "oldRatchetList" && key != "currentRatchet") {
-                            keysLeft = true;
-                            break;
-                        }
-                    }
-                    doDeleteSession = !keysLeft;
-                    console.log((doDeleteSession ? "Deleting " : "Not deleting ") + "closed session which has not yet timed out");
-                } else
-                    console.log("Deleting closed session due to timeout (created at " + session.indexInfo.closed + ")");
-            }
-
-            if (doDeleteSession)
-                delete sessions[util.toString(session.indexInfo.baseKey)];
-            else
-                sessions[util.toString(session.indexInfo.baseKey)] = session;
+            this.removeOldSessions();
 
             var openSessionRemaining = false;
             for (var key in sessions)
@@ -34679,6 +34660,23 @@ Internal.SessionRecord = function() {
                 }
                 delete session[util.toString(oldest.ephemeralKey)];
                 session.oldRatchetList.splice(index, 1);
+            }
+        },
+        removeOldSessions: function() {
+            // Retain only the last 20 sessions
+            var sessions = this._sessions;
+            var oldestBaseKey, oldestSession;
+            while (Object.keys(sessions).length > 20) {
+                for (var key in sessions) {
+                    var session = sessions[key];
+                    if (session.indexInfo.closed > -1 && // session is closed
+                        (!oldestSession || session.indexInfo.closed < oldestSession.indexInfo.closed)) {
+                        oldestBaseKey = key;
+                        oldestSession = session;
+                    }
+                }
+                console.log("Deleting session closed at", session.indexInfo.closed);
+                delete this.sessions[util.toString(oldestBaseKey)];
             }
         },
     };
