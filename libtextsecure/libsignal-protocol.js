@@ -34666,7 +34666,7 @@ SessionBuilder.prototype = {
   processV3: function(record, message) {
     var preKeyPair, signedPreKeyPair, session;
     return this.storage.isTrustedIdentity(
-        this.remoteAddress.getName(), message.identityKey
+        this.remoteAddress.getName(), message.identityKey.toArrayBuffer()
     ).then(function(trusted) {
         if (!trusted) {
             var e = new Error('Unknown identity key');
